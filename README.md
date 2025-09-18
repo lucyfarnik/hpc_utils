@@ -1,6 +1,27 @@
 # infrastructure
 
-# Running jobs in Blue Pebble
+## Getting started (for new lab members)
+
+Clone this repo into your home directory:
+```
+git clone https://github.com/LaurenceA/infrastructure.git
+```
+
+Move the default bashrc to `~/.bashrc`
+```
+cp ~/infrastructure/dotfiles/bashrc ~/.bashrc
+```
+and log out then log back in. This does a few things.
+
+First, it provides scripts to help submitting jobs (described below).
+
+Second, we have two places to keep files $HOME and $WORK. $HOME is backed up, but is super constrained (about 20 GB). $WORK is much bigger but not backed up. So, this `.bashrc` sets all caches, including for Hugging Face and Pip, to live in $WORK.
+
+Third, it is super-easy to make a gigantic mess when installing stuff in Python.  To fix that, this .bashrc actually bans you from installing packages globally.  You can only install packages in a venv.  The next problem is that naturally, you'd usually install packages in the home directory.  But that can run out of space super-fast.  Therefore, this bashrc provides a `venv` command (described below). 
+
+Fourth, the .bashrc provides a default queue and hpc_project_code for the job submission scripts below.
+
+## Running jobs in Blue Pebble
 
 Making a job script for each run is extremely tedious.  The files in `blue_pebble/bin` automate this.  To use these, you need to first download this repo (I downloaded it to `~/git/infrastructure`), then add `blue_pebble/bin` to the path.  You need to add:
 ```
@@ -28,7 +49,7 @@ lbatch -c 1 -g 1 -m 22 -a hpc_project_code -q queue_name --autoname --cmd python
 and produces logs with the name: `output_filename.o`, which tends to be much more helpful for working out which log-file
 belongs to which job.  This may require you to use `print('...', flush=True)`, to make sure that the printed output isn't buffered.
 
-There is a `--venv` command line argument for specifying the Python virtual environment to activate on the remote node (which tends to be quite difficult if it isn't hard-coded). Or alternatively you can specify the name of a conda environment with `--conda-env`.
+There is a `--venv` command line argument for specifying the Python virtual environment to activate on the remote node.  If no argument is provided, it calls `venv_activate`.  Otherwise, it activates the provided directory. Or alternatively you can specify the name of a conda environment with `--conda-env`.
 
 To specify your HPC project code use the `-a` option. Jobs submitted on Blue Pebble will not run without a project code. To get a your project code, ask your PI.  Additionally, accounts can only run with certain project codes.  To see what project code(s) are associated with your account, use 
 ```
@@ -62,8 +83,39 @@ To make full use of all the GPUs on a system, it is recommended that you only us
 | ---- | ----------- | ----- | ------------- | --------------------- | ------------ |
 | `rtx_2080` | 11 | 4 | 4 | 22 | 2 |
 | `rtx_3090` | 24 | 8 | 1  | 62 | 2 |
-| `A100` | 40 | 2 | 4 | 124 | 16 |
-| `A100` | 80 | 2 | 4 | 124 | 16 |
+| `A100` | 40 | 4 | 2 | 124 | 16 |
+| `A100` | 80 | 4 | 2 | 124 | 16 |
+
+## Assessing cluster resource usage:
+
+To look at resource allocation on a fine-grained basis,
+```
+scontrol show nodes
+```
+Then look at the 
+```
+CfgTRES=cpu=64,mem=490000M,billing=64,gres/gpu=3
+AllocTRES=cpu=34,mem=176G,gres/gpu=3
+```
+lines.
+
+## Putting venvs on the work directory.
+
+Python venvs can end up super-large, so you don't really want them on your home directory.
+
+The usual approach is to start a venv in the `venv` directory,
+```
+python -m venv venv
+source venv/bin/activate
+```
+Then you can use pip install as usual.
+However, these venvs can be huge in machine learning projects, so we can again end up running out of space in $HOME. So this .bashrc provides a `venv` tool to make it easy to install venvs to work directory (specifically `$VENVS=$WORK/venvs`.  You can use:
+```
+venv init venv_name
+venv activate venv_name
+```
+Using these commands, a venv is created at `$WORK/venvs/venv_name`.
+
 
 # Notes
 
@@ -91,14 +143,14 @@ The time limits for various queues are:
 ## Seeing your queued jobs
 You can use `sacct` to get an overview of all jobs you have run / queued today, including which are queued, running, completed, or failed.
 
-You can also use `squeue -u <username>`, but it won't show you completed / failed jobs.
+You can also use `squeue --me`, but it won't show you completed / failed jobs.
 
 ## Deleting all your jobs
 Use `lsub` above, then you can just Ctrl-C your unwanted jobs.
 
 Otherwise:
 ```
-scancel -u ei19760
+scancel --me
 ```
 
 ## Transfering data
@@ -152,7 +204,7 @@ Full documentation is [here](https://slurm.schedmd.com/squeue.html).
 ## Uploading to arXiv
 
 * Check that there aren't any wrong / soon-to-be-outdated notes from the template in the compiled pdf (e.g. "Published in <conference>" or "Preprint; under review at <conference>").  You can remove these relatively easily by editting the style file (just search for the offending string).  To avoid confusion later, you should do these edits in a new style file, e.g. `<conference>_arxiv.sty`.
-* Check there aren't any extra files or embarassing comments in the Overleaf.
+* Check there aren't any extra files or embarassing comments in the .tex files.
 * Download a zip from Overleaf (Submit -> ArXiv).  MacOS, may automatically unzip the file, in which case you have to zip it again (Finder -> Right click on folder -> Compress "<filename>").
 * You can upload the entire zip to arXiv.
 
@@ -231,3 +283,35 @@ Previously, I have installed Anaconda Python.  I am currently moving to using th
 ```
 export PIP_REQUIRE_VIRTUALENV=1
 ```
+
+## Isambard AI resources
+
+[Isambard AI Docs](https://docs.isambard.ac.uk)
+
+[Isambard AI Specs](https://docs.isambard.ac.uk/specs/) (Basically, they are 4 * H100 nodes, but with 96 rather than 80 GB of VRAM, and with an absurdly huge number of CPUs (288).
+
+Singularity containers work pretty well out of the box on Isambard. Here are some [rough notes](https://gist.github.com/lippirk/47256bc7cba7228826b1ca4ab088f46b) on a workflow for getting distributed training working on Isambard using Singularity.
+
+Alternatively, you can take advantage of uv's ability to automatically select the appropriate PyTorch index by inspecting the system configuration.
+Once [you have installed uv](https://docs.astral.sh/uv/#installation), [enable experimental features](https://docs.astral.sh/uv/reference/settings/#preview) by adding `preview = true` to pyproject.toml under `[tool.uv]`.
+Then, you can [automatically select the best index](https://docs.astral.sh/uv/guides/integration/pytorch/#the-uv-pip-interface) compatible with the CUDA driver version in your environment like so:
+```sh
+$ UV_TORCH_BACKEND=auto uv pip install torch
+```
+At the time of writing, that installs torch 2.6.0+cu126 on Isambard-AI.
+But it's an experimental uv feature, so caveat emptor.
+
+## Isambard AI / Dawn Specs:
+
+### Isambard AI
+
+Isambard-AI phase 1 has 40 compute nodes, each of which contains 4 Nvidia Grace Hopper (GH200) superchips. Each node has 288 Grace CPU cores and 4 H100 GPUs. There is 512 GB of CPU memory per node, and 384 GB of High Bandwidth (GPU) memory. The nodes are connected using a Slingshot high performance network interconnect (4 200 Gbps injection points per node).
+
+From summer 2025, users will also be able to access Isambard-AI phase 2 through the early access call while the system is being tested, which has an additional 5,280 Nvidia Grace Hopper (GH200) superchips.
+Technical details of Dawn
+
+### Dawn
+
+Dawn consists of 256 Dell XE9640 server nodes, each server has 4 Intel Data Centre Max 1550 GPUs (each GPU has 128 GB HBM RAM configured in a 4-way SMP mode with XE-LINK). In total there are 1024 Intel GPUs.  Each server has 2 Gen 5 XEONs, and 1TB RAM and 4 HDR200 Infiniband links connected to a fully non-blocking fat tree. There is 14TB of local NVMe storage on each server. Dawn also has 2.8PB of NVMe flash storage. This consists of 18 quad-connected HDR infiniband servers providing 1.8 TB/s of network bandwidth to 432 NVMe drives designed to match the network performance. This High Performance storage layer will be tightly integrated with the scheduling software to support complex pipelines and AI workloads. Dawn has also access to 5PB of HPC Lustre storage on spinning disks. During the pilot phase 100 nodes will be available to users whilst development and performance work continues on the rest of the cluster.
+
+

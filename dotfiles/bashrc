@@ -1,0 +1,133 @@
+# .bashrc
+
+# Source global definitions
+if [ -f /etc/bashrc ]; then
+        . /etc/bashrc
+fi
+
+#An environment variables for the home and work directories
+export WORK="/user/work/${USER}"
+export HOME="/user/home/${USER}"
+
+#Default project code
+export HPC_PROJECT_CODE="COSC020762"
+
+#Default queue
+export DEFAULT_QUEUE="cnu"
+
+#Scripts for submitting jobs in the infrastructure repo (assuming you've cloned to this location)
+export PATH="$PATH:${HOME}/infrastructure/blue_pebble/bin"
+
+#A nicer prompt
+export PS1="\w $ "
+
+#Alias for measuring the size of a directory without following symlinks
+alias dirsize='du -sPh'
+
+#Home directory doesn't have much space, so all all caches, including Pip, 
+#HF etc. in the work directory.
+export XDG_CACHE_HOME="${WORK}/.cache"
+
+#Force Pip to use virtualenvs for all installs
+export PIP_REQUIRE_VIRTUALENV=1
+
+#Reasonably recent version of Python
+module add languages/python/3.12.3
+
+#Pip virtual environments can get huge.  So we define a couple of commands
+#to make it easy to put them in the $VENVS directory on the work partition.
+
+# The venv directory
+export VENVS="${WORK}/venvs"
+mkdir -p "$VENVS"
+
+# Define the directory for virtual environments
+export VENVS="$HOME/.virtualenvs"
+mkdir -p "$VENVS"
+
+# Unified function to manage Python virtual environments
+venv() {
+  local subcommand="$1"
+  shift # After this, $1 is the environment name
+
+  case "$subcommand" in
+    init)
+      if [ -z "$1" ]; then
+        echo "Usage: venv init <environment_name>"
+        return 1
+      fi
+
+      # --- NEW: Check if the environment already exists ---
+      if [ -d "$VENVS/$1" ]; then
+        echo "Error: Virtual environment '$1' already exists."
+        echo "Use 'venv remove $1' to delete it first if you wish to recreate it."
+        return 1
+      fi
+      # --- END NEW ---
+
+      echo "Creating virtual environment '$1' in $VENVS/$1..."
+      python3 -m venv "$VENVS/$1"
+      ;;
+
+    activate)
+      if [ -z "$1" ]; then
+        echo "Usage: venv activate <environment_name>"
+        return 1
+      fi
+      if [ -f "$VENVS/$1/bin/activate" ]; then
+        source "$VENVS/$1/bin/activate"
+        echo "Virtual environment '$1' activated."
+      else
+        echo "Error: Virtual environment '$1' not found."
+        return 1
+      fi
+      ;;
+
+    list)
+      if [ -d "$VENVS" ]; then
+        echo "Available virtual environments in $VENVS:"
+        ls -1 "$VENVS"
+      else
+        echo "Virtual environments directory not found at $VENVS"
+        return 1
+      fi
+      ;;
+
+    # --- NEW: Command to remove an environment ---
+    remove)
+      if [ -z "$1" ]; then
+        echo "Usage: venv remove <environment_name>"
+        return 1
+      fi
+      if [ ! -d "$VENVS/$1" ]; then
+        echo "Error: Virtual environment '$1' not found."
+        return 1
+      fi
+
+      # Ask for confirmation before deleting
+      read -p "Are you sure you want to permanently delete the virtual environment '$1'? [y/N] " confirm
+      # Convert response to lowercase
+      confirm=${confirm,,}
+
+      if [[ "$confirm" == "y" || "$confirm" == "yes" ]]; then
+        echo "Removing virtual environment '$1'..."
+        rm -rf "$VENVS/$1"
+        echo "Successfully removed."
+      else
+        echo "Removal cancelled."
+      fi
+      ;;
+    # --- END NEW ---
+
+    *) # Updated help message
+      echo "Usage: venv <command> [argument]"
+      echo ""
+      echo "Commands:"
+      echo "  init <name>      Create a new virtual environment."
+      echo "  activate <name>  Activate a virtual environment."
+      echo "  list             List all available environments."
+      echo "  remove <name>    Permanently remove a virtual environment."
+      return 1
+      ;;
+  esac
+}
