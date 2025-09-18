@@ -1,5 +1,13 @@
 # Work on a Jupyter notebook on Blue Pebble
 
+## The short version
+1. On the login node, run e.g. `lint -c 1 -g 1 -t 336 -m 22 -a COSC020762 --gputype A100 --exclude_40G_A100 -q cnu`
+2. `ssh` into the compute node
+3. On the compute node, activate the environment (e.g. `conda activate qf`) and then start the server with `jupyter notebook --no-browser --port=8888 --ip=0.0.0.0`
+4. Take the URL that the Jupyter command output, use that to set up a tunnel by locally running `ssh -L 8888:localhost:8888 -o ProxyJump=bp bp1-gpu039` (replacing the last bit with the right GPU)
+5. In a local notebook, select "an existing Jupyter server" and paste in the URL
+
+## Intro
 The simplest option to run the Jupyter server on the login node.
 However, sometimes this is not desirable. Perhaps you want more resources than a login node provides or you don't want to have to manage keeping the process running if you don't maintain a network connection.
 
