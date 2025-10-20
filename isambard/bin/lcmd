@@ -38,4 +38,7 @@ cmd = cmd + f" --cpus-per-task={args.cpus}"
 if args.memory is not None:
     cmd = cmd + f" --mem={args.memory}G"
 
+if args.gpus is not None:
+    cmd = cmd + f" --gpus={args.gpus}"
+
 print(cmd + " ")
