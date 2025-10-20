@@ -1,0 +1,86 @@
+#!/usr/bin/env python3
+
+import os
+import sys
+import argparse
+import subprocess
+from pathlib import Path
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--cpus',    '-c', type=int, nargs='?', default=1)
+parser.add_argument('--gpus',    '-g', type=int, nargs='?')
+parser.add_argument('--hours',   '-t', type=int, nargs='?', default=1, help="time in hours")
+parser.add_argument('--mins',          type=int, nargs='?', default=0, help="time in mins")
+parser.add_argument('--memory',  '-m', type=int, nargs='?',             help="memory in gb")
+parser.add_argument('--name',    '-n', type=str, nargs='?',             help="manually choose output filename")
+parser.add_argument('--venv',          type=str, nargs='?', default="", help='path to virtual env. ')  
+parser.add_argument('--conda-env',     type=str, nargs='?',             help='Name of conda environment to use. If --venv is also specified then venv will be used.')
+parser.add_argument('--array-range',   type=str, nargs='?',             help='Array range for array job, as a string; e.g. 1-10 or comma seperated list of values. You must also replace an input arg with ARRAY_ID for this to work.', default=None)
+parser.add_argument('--port',          type=str, nargs='*',             help="ports to open ssh tunnels back to login nodes")
+parser.add_argument('--cmd',           type=str, nargs='*',             help="job command --- must be last argument")
+parser.add_argument('--autoname', action='store_true',                  help="extract output filename based on job --- always uses third argument after --cmd, as in --cmd python file.py output_filename")
+
+#parser.add_argument('ssd', '-s', action=store_true)
+
+# split input args on --cmd
+cmd_idx = sys.argv.index('--cmd')
+args = sys.argv[1:cmd_idx]
+args = parser.parse_args(args)
+
+cmd = ' '.join(sys.argv[(1+cmd_idx):])
+
+print("#!/bin/bash")
+print("source ~/.bashrc")
+
+array_id=''
+if args.array_range is not None:
+    if "ARRAY_ID" not in cmd:
+        # Conditions not met to run array job
+        pass
+    else:   
+        print(f'#SBATCH --array={args.array_range}')
+        cmd = cmd.replace('ARRAY_ID', '${SLURM_ARRAY_TASK_ID}')
+        array_id = '-%a'
+    
+if args.name:
+    path=args.name
+    print(f"#SBATCH --job-name={os.path.basename(path)}")
+    print(f"#SBATCH --output={path}{array_id}.o")
+
+elif args.autoname:
+    path = sys.argv[cmd_idx+3]
+    print(f"#SBATCH --job-name={os.path.basename(path)}")
+    print(f"#SBATCH --output={path}{array_id}.o")
+
+          
+print('')
+print('cd $SLURM_SUBMIT_DIR')
+
+if args.port:
+    for i in range(1,6):
+        for port in args.port:
+            print(f"/usr/bin/ssh -N -f -R {port}:localhost:{port} bp1-login0{i}.data.bp.acrc.priv")
+
+
+if args.venv is None:
+    #--venv with no virtualenv path
+    print('venv_activate')
+elif args.venv:
+    #Catehces args.venv is a non-empth string
+    #--venv venv_path
+    print(f'source {args.venv}/bin/activate')
+
+elif args.conda_env is not None:
+    # Find conda path
+    conda_path = Path(subprocess.run(['which', 'conda'], capture_output=True, encoding='utf-8').stdout)
+    conda_activate_path = str(conda_path.parents[1] / 'etc/profile.d/conda.sh')
+    
+    print(f'source {conda_activate_path}')
+    print(f'conda activate {args.conda_env}')
+print('')
+
+if args.autoname:
+    #directly pipe output to file (so that its available immediately)
+    print(f"{cmd} 2>&1 | tee {path}.o")
+else:
+    print(cmd)
