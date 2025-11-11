@@ -102,6 +102,7 @@ elif args.conda_env is not None:
     print("source activate")
     print(f'conda activate {args.conda_env}')
 print('')
+print("export HPC_CLUSTER=MareNostrum")
 
 if args.autoname:
     #directly pipe output to file (so that its available immediately)
