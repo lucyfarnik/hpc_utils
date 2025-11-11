@@ -32,7 +32,6 @@ args = parser.parse_args(args)
 cmd = ' '.join(sys.argv[(1+cmd_idx):])
 
 print("#!/bin/bash")
-print("source ~/.bashrc")
 
 array_id=''
 if args.array_range is not None:
@@ -54,8 +53,29 @@ elif args.autoname:
     print(f"#SBATCH --job-name={os.path.basename(path)}")
     print(f"#SBATCH --output={path}{array_id}.o")
 
-          
+#Use command line argument if provided; otherwise default to environment variable if present
+if args.account is not None:
+    print(f"#SBATCH --account={args.account}")
+elif 'HPC_PROJECT_CODE' in os.environ:
+    print(f"#SBATCH --account={os.environ['HPC_PROJECT_CODE']}")
+
+#Use command line argument if provided; otherwise default to environment variable if present
+if args.queue is not None:
+    print(f"#SBATCH --qos={args.queue}")
+elif 'DEFAULT_QUEUE' in os.environ:
+    print(f"#SBATCH --qos={os.environ['DEFAULT_QUEUE']}")
+
+days = args.hours//24
+hours = args.hours % 24
+mins = args.mins
+print(f"#SBATCH --time={days}-{hours:>02}:{mins:>02}:00")
+
+print(f"#SBATCH --cpus-per-task={args.cpus}")
+if args.gpus is not None:
+    print(f"#SBATCH --gres=gpu:{args.gpus}")
+
 print('')
+print("source ~/.bashrc")
 print('cd $SLURM_SUBMIT_DIR')
 
 if args.port:
